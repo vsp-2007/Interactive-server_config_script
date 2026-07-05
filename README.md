@@ -6,7 +6,7 @@ Note:-
 
 Welcome to the **Server Setup** project. The objective of this project is to transform a standard Raspberry Pi OS (Trixie) installation into a powerful, automated, and observable server stack.
 
-## 🚀 Features
+## Features
 
 This server stack comes packed with a highly modular and robust ecosystem:
 - **Core System**: Automated user setup, SSH configuration, and optimization.
@@ -18,10 +18,10 @@ This server stack comes packed with a highly modular and robust ecosystem:
 - **Reverse Proxy**: Nginx integration for local domain routing (e.g. `dashboard.home`, `pi.home`).
 - **Additional Apps**: Cockpit, Localsend, Stirling-PDF, and n8n Automation Engine.
 
-## 📚 Documentation
+## Documentation
 For complete technical details, see `DOCUMENTATION.md`, or check the `docs/` and `documents/` directories.
 
-## 🛠️ Usage
+##  Usage
 # Installation Steps
 
 This guide explains how to install the Pi Server Setup suite using the provided orchestration script.
@@ -31,7 +31,7 @@ This guide explains how to install the Pi Server Setup suite using the provided 
 - SSH access to your Raspberry Pi.
 - Basic networking setup completed (e.g. connected to your WiFi or Ethernet).
 
-## 🚀 How to Install
+##  How to Install
 
 1. **Clone the Repository** (If you haven't already):
    Ensure you have downloaded this project to your Raspberry Pi.
