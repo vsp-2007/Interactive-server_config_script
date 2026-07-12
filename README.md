@@ -5,6 +5,11 @@ Note:-
 > And some package and application might not work or install due to  architectural mismatches(Aarch64-Aarch32-x86-x64) 
 
 Welcome to the **Server Setup** project. The objective of this project is to transform a standard Raspberry Pi OS (Trixie) installation into a powerful, automated, and observable server stack.
+<p align="center">
+  <a href="https://skillicons.dev">
+    <img src="https://skillicons.dev/icons?i=debian,nginx,prometheus,py,raspberrypi" />
+  </a>
+</p>
 
 ## Features
 
