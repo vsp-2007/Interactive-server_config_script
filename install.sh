@@ -89,13 +89,9 @@ _log() {
     local timestamp; timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     local output="${timestamp} [${level}] ${msg}"
     
-    # Always print to stdout
-    echo -e "${output}"
+    printf '%s\n' "${output}"
     
-    # Try to log to file if directory exists
-    if [[ -d "${LOG_DIR}" ]]; then
-        echo -e "${output}" >> "${LOG_FILE}" 2>/dev/null || true
-    fi
+    [[ -d "${LOG_DIR}" ]] && printf '%s\n' "${output}" >> "${LOG_FILE}" 2>/dev/null || true
 }
 
 log_info()    { _log "INFO"    "${BLUE}${*}${NC}"; }
@@ -513,7 +509,7 @@ run_tui_mode() {
     local total=${#MODULES_TO_INSTALL[@]} current=0 failed=()
     for module in "${MODULES_TO_INSTALL[@]}"; do
         ((current++))
-        $tool --title "Installing $module" --gauge "Installing $module ($current of $total)..." 8 70 0 &
+        $tool --title "Installing $module" --gauge "Installing $module ($current of $total)..." 8 70 $((current * 100 / total)) &
         local gauge_pid=$!
         
         if execute_module "$module"; then
@@ -538,6 +534,7 @@ run_tui_mode() {
 # ============================================================================
 main() {
     local config_file="${CONFIG_FILE_DEFAULT}" modules_arg="" non_interactive=false dry_run=false repair_mode=false uninstall_mode=false
+    TUI_MODE=false
     
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -581,10 +578,10 @@ EOF
     done
     
     # Experimental warning
-    echo -e "${BOLD}${YELLOW}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${YELLOW}╔══════════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${BOLD}${YELLOW}║                    ⚠️  EXPERIMENTAL v${SCRIPT_VERSION}                    ║${NC}"
-    echo -e "${BOLD}${YELLOW}║  This is experimental software. Use CLI for production.      ║${NC}"
-    echo -e "${BOLD}${YELLOW}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${BOLD}${YELLOW}║  This is experimental software. Use CLI for production.          ║${NC}"
+    echo -e "${BOLD}${YELLOW}╚══════════════════════════════════════════════════════════════════════╝${NC}"
     echo
     
     # Check for TUI mode
@@ -594,28 +591,34 @@ EOF
         exit $?
     fi
     
-    # CLI Mode Selection
+    # CLI Mode Selection - simplified and robust
     if [[ "${non_interactive}" != "true" ]]; then
         echo -e "${BOLD}Select installation mode:${NC}"
         echo "  ${GREEN}1)${NC} CLI - Stable, production-ready (DEFAULT)"
         echo "  ${YELLOW}2)${NC} TUI - Terminal UI (Experimental, may have issues)"
         echo
-        read -rp "Select mode [1]: " mode_choice
-        mode_choice="${mode_choice:-1}"
         
-        case "${mode_choice}" in
-            2)
-                log_warn "Starting TUI mode (Experimental)..."
-                run_tui_mode
-                exit $?
-                ;;
-            1|"")
-                log_info "Starting CLI mode (Stable, production-ready)"
-                ;;
-            *)
-                log_warn "Invalid choice, defaulting to CLI"
-                ;;
-        esac
+        local mode_choice=""
+        # Use a simple read without -p flag for better compatibility
+        while true; do
+            echo -n "Select mode [1]: "
+            read -r mode_choice
+            mode_choice="${mode_choice:-1}"
+            case "${mode_choice}" in
+                1|"")
+                    log_info "Starting CLI mode (Stable, production-ready)"
+                    break
+                    ;;
+                2)
+                    log_warn "Starting TUI mode (Experimental)..."
+                    run_tui_mode
+                    exit $?
+                    ;;
+                *)
+                    log_warn "Invalid choice. Please enter 1 or 2."
+                    ;;
+            esac
+        done
     fi
     
     # CLI Mode (default)
