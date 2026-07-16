@@ -685,7 +685,7 @@ Options:
   --repair           Attempt to repair broken installations
   --uninstall        Uninstall specific modules or everything
 
-Available modules: $(printf '%s, ' "${MODULES[@]}" | sed 's/:.*//g' | sed 's/, $//')
+Available modules: $(printf '%s\n' "${MODULES[@]}" | cut -d: -f1 | paste -sd, -)
 
 Examples:
   sudo ./install.sh                          # Interactive full install
@@ -704,8 +704,18 @@ EOF
         shift
     done
     
-    # Setup
+    # Setup - ensure basic tools first
     check_root
+    
+    # Ensure basic tools are available before proceeding
+    local required_base_tools=(curl wget gpg apt-get systemctl)
+    for tool in "${required_base_tools[@]}"; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            log_warn "Required tool '$tool' not found, attempting to install..."
+            apt-get update -qq && apt-get install -y -qq "$tool" 2>/dev/null || true
+        fi
+    done
+    
     check_os
     check_arch
     setup_directories

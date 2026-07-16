@@ -145,6 +145,14 @@ setup_tailscale() {
     
     log_info "Setting up Tailscale VPN..."
     
+    # Ensure required tools are available
+    for tool in curl ip; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            log_warn "Required tool '$tool' not found, attempting to install..."
+            apt-get update -qq && apt-get install -y -qq "$tool" 2>/dev/null || true
+        fi
+    done
+    
     # Install if not present
     if ! command -v tailscale >/dev/null 2>&1; then
         log_info "Installing Tailscale..."
@@ -261,6 +269,14 @@ setup_pangolin() {
     fi
     
     log_info "Setting up Pangolin VPN (https://pangolin.net/)..."
+    
+    # Ensure required tools are available
+    for tool in curl ip; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            log_warn "Required tool '$tool' not found, attempting to install..."
+            apt-get update -qq && apt-get install -y -qq "$tool" 2>/dev/null || true
+        fi
+    done
     
     # Install if not present
     if ! command -v pangolin >/dev/null 2>&1; then

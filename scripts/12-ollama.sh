@@ -305,6 +305,14 @@ select_models_for_hardware() {
 install_ollama() {
     log_info "Installing/updating Ollama..."
     
+    # Ensure required tools are available
+    for tool in curl systemctl; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            log_warn "Required tool '$tool' not found, attempting to install..."
+            apt-get update -qq && apt-get install -y -qq "$tool" 2>/dev/null || true
+        fi
+    done
+    
     # Check current version
     local current_version=""
     if command -v ollama >/dev/null 2>&1; then

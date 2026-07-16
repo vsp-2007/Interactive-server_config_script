@@ -208,7 +208,7 @@ EOF
 apply_pi_optimizations() {
     log_info "Applying Raspberry Pi optimizations..."
     
-    # Swap optimization for Pi
+    # Swap optimization for Pi - only if dphys-swapfile exists
     if [[ -f /etc/dphys-swapfile ]]; then
         local current_swap
         current_swap=$(grep "^CONF_SWAPSIZE=" /etc/dphys-swapfile | cut -d= -f2)
@@ -219,13 +219,13 @@ apply_pi_optimizations() {
         fi
     fi
     
-    # GPU memory split (headless server)
+    # GPU memory split (headless server) - only if /boot/config.txt exists
     if [[ -f /boot/config.txt ]] && ! grep -q "^gpu_mem=" /boot/config.txt; then
         echo "gpu_mem=16" >> /boot/config.txt
         log_info "Set GPU memory to 16MB (headless)"
     fi
     
-    # Disable HDMI if headless
+    # Disable HDMI if headless - only if /boot/config.txt exists
     if [[ -f /boot/config.txt ]] && ! grep -q "^hdmi_blanking=" /boot/config.txt; then
         echo "hdmi_blanking=1" >> /boot/config.txt
     fi
@@ -425,7 +425,10 @@ configure_swap() {
                 fi
                 
                 log_info "Creating ${swap_size_gb}GB swap file..."
-                fallocate -l "${swap_size_gb}G" /swapfile
+                fallocate -l "${swap_size_gb}G" /swapfile 2>/dev/null || {
+                    # fallocate might fail on some filesystems, use dd as fallback
+                    dd if=/dev/zero of=/swapfile bs=1G count="${swap_size_gb}" 2>/dev/null
+                }
                 chmod 600 /swapfile
                 mkswap /swapfile
                 swapon /swapfile

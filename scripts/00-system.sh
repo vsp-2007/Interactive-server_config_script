@@ -83,6 +83,15 @@ run_system_updates() {
 install_essential_packages() {
     log_info "Installing essential packages..."
     
+    # First, ensure basic tools are available
+    local required_tools=(curl wget gpg apt-get systemctl)
+    for tool in "${required_tools[@]}"; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            log_warn "Required tool '$tool' not found, attempting to install..."
+            apt-get update -qq && apt-get install -y -qq "$tool" 2>/dev/null || true
+        fi
+    done
+    
     # Get platform-specific package list
     local base_packages=(
         # System utilities
@@ -110,7 +119,12 @@ install_essential_packages() {
     local packages
     packages=$(get_packages_for_platform "${base_packages[@]}")
     
-    apt-get install -y -qq ${packages} -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
+    # Update package list and install
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    # Install with force-confdef/confold to avoid prompts
+    apt-get install -y -qq ${packages} -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" 2>&1 | \
+        grep -v "^Preconfiguring packages$" || true
     
     # Install modern CLI tools via binary downloads (cross-platform)
     install_modern_tools
@@ -290,40 +304,50 @@ configure_firewall() {
         log_info "UFW disabled in config, skipping..."
         return 0
     fi
-    
+
     log_info "Configuring UFW firewall..."
-    
+
     # Reset to defaults
     ufw --force reset
-    
+
     # Default policies
     if [[ "${UFW_DEFAULT_DENY_INCOMING}" == "yes" ]]; then
         ufw default deny incoming
     else
         ufw default allow incoming
     fi
-    
+
     if [[ "${UFW_DEFAULT_ALLOW_OUTGOING}" == "yes" ]]; then
         ufw default allow outgoing
     else
         ufw default deny outgoing
     fi
-    
+
     # Allow SSH (custom port)
     ufw allow "${SSH_PORT}/tcp" comment "SSH"
-    
+
     # Allow local network (adjust as needed)
     ufw allow from 192.168.0.0/16 comment "Local LAN"
     ufw allow from 10.0.0.0/8 comment "Private networks"
     ufw allow from 172.16.0.0/12 comment "Private networks"
-    
-    # Allow Tailscale
-    ufw allow in on tailscale0 comment "Tailscale"
-    ufw allow out on tailscale0 comment "Tailscale"
-    
+
+    # Allow Tailscale if interface exists
+    if ip link show tailscale0 >/dev/null 2>&1; then
+        ufw allow in on tailscale0 comment "Tailscale"
+        ufw allow out on tailscale0 comment "Tailscale"
+        log_info "Tailscale interface detected, firewall rules added"
+    fi
+
+    # Allow Pangolin if interface exists
+    if ip link show pangolin0 >/dev/null 2>&1; then
+        ufw allow in on pangolin0 comment "Pangolin"
+        ufw allow out on pangolin0 comment "Pangolin"
+        log_info "Pangolin interface detected, firewall rules added"
+    fi
+
     # Enable UFW
     ufw --force enable
-    
+
     log_success "UFW firewall configured and enabled"
 }
 
