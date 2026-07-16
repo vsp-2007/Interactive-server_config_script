@@ -1,12 +1,12 @@
 # Pi Server Setup v2
 
-> **Transform your Raspberry Pi into a production-ready, observable, and secure home server.**
+> **Transform any Debian 13+ machine (Raspberry Pi, laptop, VM, server) into a production-ready, observable, and secure home server.**
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/your-repo/pi-server-setup)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/vsp-2007/Interactive-server_config_script)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%20OS%20(Trixie/Bookworm)-red)](https://www.raspberrypi.com/software/)
-[![Architecture](https://img.shields.io/badge/arch-arm64%20%7C%20armv7%20%7C%20amd64-orange)]()
-[![CI](https://github.com/your-repo/pi-server-setup/workflows/CI/badge.svg)](https://github.com/your-repo/pi-server-setup/actions)
+[![Platform](https://img.shields.io/badge/platform-Debian%2013%20(Trixie)%20%7C%2012%20(Bookworm)-red)](https://www.debian.org/releases/)
+[![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64%20%7C%20armv7-orange)]()
+[![CI](https://github.com/vsp-2007/Interactive-server_config_script/workflows/CI/badge.svg)](https://github.com/vsp-2007/Interactive-server_config_script/actions)
 
 ---
 
@@ -29,7 +29,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Raspberry Pi                              │
+│                    Debian 13+ Machine                            │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
 │  │   Tailscale  │  │    Pi-hole   │  │    Nginx     │           │
@@ -52,28 +52,51 @@
 
 ---
 
+## 🖥️ Supported Platforms
+
+| Platform | Architectures | Notes |
+|----------|---------------|-------|
+| **Raspberry Pi OS** | arm64, armv7 | Pi 3/4/5, 64-bit recommended |
+| **Debian 13 (Trixie)** | amd64, arm64 | Primary target |
+| **Debian 12 (Bookworm)** | amd64, arm64 | Fully supported |
+| **Ubuntu 22.04/24.04** | amd64, arm64 | LTS releases |
+| **Generic Laptop/Desktop** | amd64 | Auto-detects TLP, thermald, lid switch |
+| **VM (Proxmox, ESXi, VirtualBox)** | amd64, arm64 | Auto-installs qemu-guest-agent |
+| **Mini PC / SBC** | amd64, arm64 | Any Debian 12/13 derivative |
+
+### Minimum Requirements
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| **CPU** | 2 cores | 4+ cores |
+| **RAM** | 2 GB | 4+ GB (8 GB for full stack) |
+| **Storage** | 16 GB | 32+ GB (SSD/NVMe preferred) |
+| **Network** | Ethernet/WiFi | Gigabit Ethernet |
+| **OS** | Debian 12+ | Debian 13 (Trixie) |
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- Raspberry Pi 4/5 (2GB+ RAM recommended)
-- Raspberry Pi OS (64-bit) **Trixie** or **Bookworm**
-- SSH access
-- Internet connection
+- Any Debian 12/13 or derivative (Raspberry Pi OS, Ubuntu 22.04/24.04, etc.)
+- Root/sudo access
+- Internet connection for package downloads
 
 ### Installation
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/your-repo/pi-server-setup.git
-cd pi-server-setup
+# 1. Clone the development branch
+git clone -b v2-development https://github.com/vsp-2007/Interactive-server_config_script.git
+cd Interactive-server_config_script
 
 # 2. Copy and configure settings
 cp config/settings.conf.example settings.conf
 # Edit settings.conf with your values (see Configuration below)
 nano settings.conf
 
-# 3. Secure the config file
+# 3. Secure the config file (CRITICAL - contains secrets!)
 chmod 600 settings.conf
 
 # 4. Run the installer
@@ -82,7 +105,7 @@ sudo ./install.sh
 
 ### Interactive Menu
 
-The installer presents a menu to select modules:
+The installer presents a module selection menu:
 
 ```
 Select modules to install:
@@ -106,7 +129,7 @@ Select modules to install:
 
 ```bash
 # Install specific modules
-sudo ./install.sh -y -m "system,network,pihole,monitoring"
+sudo ./install.sh -y -m "system,network,pihole,monitoring,samba"
 
 # Full automated install (requires pre-configured settings.conf)
 sudo ./install.sh -y
@@ -177,27 +200,26 @@ UNATTENDED_UPGRADES="true"
 - SSH hardening (custom port, key-only auth, strong ciphers)
 - UFW firewall with sensible defaults
 - Fail2Ban (SSH, nginx, Pi-hole, Webmin jails)
-- Unattended upgrades (security only)
-- Journald log retention (500MB)
-- Swap optimization (1-2GB)
-- RealVNC setup
+- Unattended security upgrades
+- Journald log retention (500MB/30 days)
+- Platform-optimized swap (dphys-swapfile on Pi, swap file elsewhere)
 
 ### 2. Network (`network`)
 - Tailscale installation & authentication
 - Exit node advertisement
-- Subnet route advertisement (LAN access)
+- Subnet route advertisement (LAN access via VPN)
 - MagicDNS + Global Nameserver guidance
-- Optional static IP (with warnings)
+- Optional static IP (with strong warnings)
 
 ### 3. Pi-hole (`pihole`)
 - Unattended installation
 - 25+ curated blocklists (ads, tracking, malware, phishing)
-- Automated whitelisting (AnudeepND, weekly)
+- Automated weekly whitelisting (AnudeepND)
 - Gravity updates via cron
 - Web interface password
 
 ### 4. Monitoring (`monitoring`)
-- **Prometheus** v2.54.1 with 15d/2GB retention
+- **Prometheus** v2.54.1 (15d/2GB retention)
 - **Node Exporter** v1.8.2 (full collectors)
 - **Alertmanager** v0.27.0 (Telegram integration)
 - **Grafana** v11.1.0 (pre-provisioned datasources & dashboards)
@@ -230,8 +252,8 @@ UNATTENDED_UPGRADES="true"
 
 ### 9. Stirling-PDF (`stirling`)
 - Local PDF manipulation (no cloud)
-- Java 21, optimized JVM settings for Pi
-- 2GB swap, serial GC, tiered compilation
+- Java 21, optimized JVM (SerialGC, tiered compilation)
+- 2GB swap, memory limits
 - No-login mode by default
 
 ### 10. Nginx Reverse Proxy (`nginx`)
@@ -267,14 +289,13 @@ UNATTENDED_UPGRADES="true"
 | Webmin | `https://<IP>:10000` | `http://webmin.home` |
 | Samba | `\\<IP>\pishare` | - |
 
-> **Note**: Configure Pi-hole Local DNS (`http://pi.home/admin/dns_records.php`) to map `.home` domains to your Pi's IP.
+> **Note**: Configure Pi-hole Local DNS (`http://pi.home/admin/dns_records.php`) to map `.home` domains to your server's IP.
 
 ---
 
 ## 🔐 Security
 
-See [SECURITY.md](SECURITY.md) for detailed security documentation including:
-
+See [SECURITY.md](SECURITY.md) for detailed documentation including:
 - Threat model & trust boundaries
 - Service user privileges
 - Secret management
@@ -282,7 +303,7 @@ See [SECURITY.md](SECURITY.md) for detailed security documentation including:
 - Hardening checklist
 - Incident response
 
-### Quick Security Wins
+### Quick Security Verification
 
 ```bash
 # Verify SSH is hardened
@@ -316,9 +337,6 @@ pihole -g
 
 # Update n8n
 sudo npm update -g n8n
-
-# Update Docker containers (if any)
-docker pull <image> && docker compose up -d
 ```
 
 ### Backups
@@ -408,10 +426,10 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/your-repo/pi-server-setup/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-repo/pi-server-setup/discussions)
+- **Issues**: [GitHub Issues](https://github.com/vsp-2007/Interactive-server_config_script/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/vsp-2007/Interactive-server_config_script/discussions)
 - **Security**: See [SECURITY.md](SECURITY.md) for responsible disclosure
 
 ---
 
-**Made with ❤️ for the Raspberry Pi community**
+**Made with ❤️ for the home server community — runs on anything Debian 13+**
