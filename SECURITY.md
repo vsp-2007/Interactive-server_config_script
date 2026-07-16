@@ -13,9 +13,9 @@
 
 Instead, report them through one of these channels:
 
-1. **GitHub Security Advisories** (Preferred): [Open a Security Advisory](https://github.com/your-repo/pi-server-setup/security/advisories/new)
-2. **Email**: security@your-domain.com
-3. **Encrypted Email**: Use our PGP key from [KEYBASE](https://keybase.io/your-username)
+1. **GitHub Security Advisories** (Preferred): [Open a Security Advisory](https://github.com/vsp-2007/Interactive-server_config_script/security/advisories/new)
+2. **Email**: security@your-domain.com (replace with actual)
+3. **Encrypted Email**: Use our PGP key from [KEYBASE](https://keybase.io/your-username) (replace with actual)
 
 We will acknowledge receipt within **48 hours** and provide a timeline for fixes.
 
@@ -41,7 +41,7 @@ This project implements multiple security layers:
 └─────────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────────┐
 │                  APPLICATION LAYER                          │
-│  • Non-root service users                                   │
+│  • Non-root service users (pi-bot, n8n, prometheus, etc.)   │
 │  • Read-only filesystems where possible                     │
 │  • Secrets in 600-permission files                          │
 │  • Input validation & rate limiting (Telegram bot)          │
@@ -49,9 +49,9 @@ This project implements multiple security layers:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Service Hardening
+### Systemd Hardening
 
-All systemd services use these hardening options:
+All custom services use these hardening directives:
 
 ```ini
 NoNewPrivileges=yes
@@ -77,45 +77,47 @@ SystemCallErrorNumber=EPERM
 - Telegram bot tokens: Stored in config, loaded via EnvironmentFile
 - No secrets in git history (enforced by .gitignore)
 
-## Threat Model
+### Service Users & Privileges
 
-### In Scope
+| Service | User | Groups | Capabilities |
+|---------|------|--------|--------------|
+| Prometheus | prometheus | prometheus | None |
+| Node Exporter | node_exporter | node_exporter | None |
+| Alertmanager | alertmanager | alertmanager | None |
+| Grafana | grafana | grafana | None |
+| Samba | smbdata | smbdata | None |
+| Stirling-PDF | stirlingpdf | stirlingpdf | None |
+| n8n | n8n | n8n | None |
+| Telegram Bot | pi-bot | pi-bot | None |
+| Pi-hole | pihole | pihole | NET_BIND_SERVICE (port 53) |
 
-- Local network attackers (compromised device on LAN)
-- Remote attackers via exposed services (if misconfigured)
-- Supply chain attacks (compromised dependencies)
-- Insider threats (malicious admin)
+## Network Exposure
 
-### Out of Scope
+**No services are exposed to the public internet by default.**
 
-- Physical access to device
-- Compromised upstream repositories (Debian, GitHub, etc.)
-- Zero-day exploits in kernel/firmware
-- Social engineering of administrators
+All services bind to:
+- `0.0.0.0` for local LAN access
+- Tailscale interface (`tailscale0`) for remote access
 
-### Mitigations
+To access remotely:
+1. Install Tailscale on your devices
+2. Connect to your tailnet
+3. Access via Tailscale IP or MagicDNS
 
-| Threat | Mitigation |
-|--------|------------|
-| LAN attacker | Tailscale for all remote access; UFW default-deny |
-| SSH brute force | Key-only auth, Fail2Ban, custom port |
-| Service compromise | Non-root users, systemd hardening, minimal capabilities |
-| Config leakage | 600 permissions, .gitignore, no secrets in logs |
-| Bot abuse | Rate limiting, input validation, admin-only commands |
+## Hardening Checklist
 
-## Secure Deployment Checklist
+Post-installation verification:
 
-- [ ] Change default SSH port (settings.conf: `SSH_PORT`)
-- [ ] Disable SSH password auth (`SSH_PASSWORD_AUTH="no"`)
-- [ ] Add your SSH public key (`PI_SSH_KEYS`)
-- [ ] Set strong passwords (or let script generate them)
-- [ ] Configure Telegram bot tokens
-- [ ] Set Tailscale auth key for unattended setup
-- [ ] Verify UFW is active after install (`ufw status`)
-- [ ] Check Fail2Ban is running (`fail2ban-client status`)
-- [ ] Review open ports (`ss -tlnp`)
-- [ ] Test Telegram bot commands
-- [ ] Configure Pi-hole local DNS for `.home` domains
+- [ ] SSH on custom port, key-only auth (`SSH_PASSWORD_AUTH="no"`)
+- [ ] UFW active with minimal rules (`ufw status verbose`)
+- [ ] Fail2Ban active with SSH, nginx, Pi-hole, Webmin jails (`fail2ban-client status`)
+- [ ] All services running as non-root users (`systemd-analyze security <service>`)
+- [ ] Systemd hardening applied (`systemd-analyze security telegram-bot.service`)
+- [ ] Config files at 600/640 permissions (`stat -c "%a %n" settings.conf /etc/pi-server-setup/*.conf`)
+- [ ] Telegram bot audit logging working (`tail /var/log/pi-server-bot/audit.log`)
+- [ ] Tailscale MagicDNS + Global Nameserver configured
+- [ ] Unattended upgrades enabled (`systemctl status unattended-upgrades`)
+- [ ] Log retention configured (journald 500MB, logrotate)
 
 ## Known Security Considerations
 
@@ -123,6 +125,7 @@ SystemCallErrorNumber=EPERM
 - Runs on port 8081 (moved from 80 for Nginx)
 - Admin password required
 - No HTTPS by default (local network only)
+- Consider Tailscale-only access
 
 ### Webmin
 - Runs on port 10000 with self-signed certificate
@@ -137,6 +140,7 @@ SystemCallErrorNumber=EPERM
 ### Stirling-PDF
 - Runs in no-login mode by default
 - Consider enabling auth for multi-user environments
+- File upload size limited to 100MB
 
 ### n8n
 - Basic auth disabled (handled by Nginx/Tailscale)
@@ -157,7 +161,7 @@ Critical vulnerabilities (CVSS ≥ 9.0) may receive expedited timelines.
 
 - Enable `UNATTENDED_UPGRADES="true"` in settings.conf
 - Monitor GitHub Security Advisories for this repo
-- Subscribe to [releases](https://github.com/your-repo/pi-server-setup/releases) for updates
+- Subscribe to [releases](https://github.com/vsp-2007/Interactive-server_config_script/releases) for updates
 - Run `sudo ./install.sh -y` periodically to apply updates
 
 ## Contact
