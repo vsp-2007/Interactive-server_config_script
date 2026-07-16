@@ -1,5 +1,5 @@
 #!/bin/bash
-# System Basics Module - Pi Server Setup v2
+# System Basics Module - Pi Server Setup v2 (Platform-agnostic)
 # Updates, user creation, SSH hardening, essential tools, security hardening
 
 set -euo pipefail
@@ -7,18 +7,7 @@ set -euo pipefail
 # Source common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
-
-# Colors
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
-readonly BLUE='\033[0;34m'
-readonly NC='\033[0m'
-
-log_info()    { echo -e "${BLUE}[INFO]${NC} $*"; }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $*"; }
-log_warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
-log_error()   { echo -e "${RED}[ERROR]${NC} $*"; }
+source "${SCRIPT_DIR}/../lib/platform.sh" 2>/dev/null || true
 
 # Configuration variables (with defaults)
 PI_USER="${PI_USER:-piadmin}"
@@ -66,11 +55,14 @@ main() {
     # 8. Configure Log Retention (journald)
     configure_log_retention
     
-    # 9. Enable RealVNC (if on Raspberry Pi)
+    # 9. Configure VNC (platform-specific)
     configure_vnc
     
-    # 10. System Optimizations
-    apply_system_optimizations
+    # 10. Configure Swap (platform-specific)
+    configure_swap
+    
+    # 11. Apply System Optimizations (platform-specific)
+    apply_platform_optimizations
     
     log_success "System Basics setup completed!"
 }
@@ -91,7 +83,8 @@ run_system_updates() {
 install_essential_packages() {
     log_info "Installing essential packages..."
     
-    local packages=(
+    # Get platform-specific package list
+    local base_packages=(
         # System utilities
         curl wget git vim htop btop jq
         # Network tools
@@ -114,9 +107,12 @@ install_essential_packages() {
         gnupg2 openssl ca-certificates
     )
     
-    apt-get install -y -qq "${packages[@]}" -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
+    local packages
+    packages=$(get_packages_for_platform "${base_packages[@]}")
     
-    # Install modern CLI tools via cargo if available, or download binaries
+    apt-get install -y -qq ${packages} -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
+    
+    # Install modern CLI tools via binary downloads (cross-platform)
     install_modern_tools
     
     log_success "Essential packages installed"
@@ -124,25 +120,51 @@ install_essential_packages() {
 
 install_modern_tools() {
     # Install eza (modern ls), bat (modern cat), fd (modern find), ripgrep (modern grep)
-    # These are installed via cargo or downloaded as binaries
+    # These are installed via binary downloads for cross-platform compatibility
     log_info "Installing modern CLI tools..."
     
-    # Try to install via apt first (newer Debian versions)
-    local modern_packages=(eza bat fd-find ripgrep)
-    apt-get install -y -qq "${modern_packages[@]}" 2>/dev/null || {
-        log_warn "Some modern tools not available in apt, skipping..."
-    }
-    
-    # Install starship prompt
+    # Starship prompt
     if ! command -v starship >/dev/null 2>&1; then
         log_info "Installing Starship prompt..."
         curl -sS https://starship.rs/install.sh | sh -s -- -y 2>/dev/null || log_warn "Starship install failed"
     fi
     
-    # Install zoxide (smart cd)
+    # Zoxide (smart cd)
     if ! command -v zoxide >/dev/null 2>&1; then
         log_info "Installing zoxide..."
         curl -sS https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | bash 2>/dev/null || log_warn "Zoxide install failed"
+    fi
+    
+    # Eza (modern ls) - download binary if not in apt
+    if ! command -v eza >/dev/null 2>&1; then
+        log_info "Installing eza..."
+        local eza_version="0.18.26"
+        local arch_suffix=""
+        case "${ARCH}" in
+            amd64) arch_suffix="x86_64-unknown-linux-gnu" ;;
+            arm64) arch_suffix="aarch64-unknown-linux-gnu" ;;
+            armv7) arch_suffix="armv7-unknown-linux-gnueabihf" ;;
+        esac
+        if [[ -n "${arch_suffix}" ]]; then
+            local eza_url="https://github.com/eza-community/eza/releases/download/v${eza_version}/eza_${arch_suffix}.tar.gz"
+            curl -sSL "${eza_url}" | tar -xz -C /usr/local/bin eza 2>/dev/null || log_warn "Eza install failed"
+        fi
+    fi
+    
+    # Bat (modern cat)
+    if ! command -v bat >/dev/null 2>&1 && ! command -v batcat >/dev/null 2>&1; then
+        log_info "Installing bat..."
+        local bat_version="0.24.0"
+        local arch_suffix=""
+        case "${ARCH}" in
+            amd64) arch_suffix="x86_64-unknown-linux-gnu" ;;
+            arm64) arch_suffix="aarch64-unknown-linux-gnu" ;;
+            armv7) arch_suffix="armv7-unknown-linux-gnueabihf" ;;
+        esac
+        if [[ -n "${arch_suffix}" ]]; then
+            local bat_url="https://github.com/sharkdp/bat/releases/download/v${bat_version}/bat-${arch_suffix}.tar.gz"
+            curl -sSL "${bat_url}" | tar -xz -C /usr/local/bin --strip-components=1 "bat-${arch_suffix}/bat" 2>/dev/null || log_warn "Bat install failed"
+        fi
     fi
 }
 
@@ -154,7 +176,12 @@ setup_system_user() {
         log_info "User ${PI_USER} already exists"
     else
         log_info "Creating user ${PI_USER}..."
-        useradd -m -s /bin/bash -G sudo,adm,dialout,cdrom,video,plugdev,games,users,input,netdev,gpio,i2c,spi "${PI_USER}"
+        
+        # Get platform-specific extra groups
+        local extra_groups
+        extra_groups=$(get_extra_user_groups sudo adm dialout cdrom video plugdev games users input netdev)
+        
+        useradd -m -s /bin/bash -G "${extra_groups}" "${PI_USER}"
         
         # Set password
         if [[ -n "${PI_PASSWORD}" ]]; then
@@ -174,7 +201,7 @@ setup_system_user() {
         setup_ssh_keys
     fi
     
-    # Add user to additional groups for hardware access
+    # Add user to docker group if docker exists
     usermod -aG docker "${PI_USER}" 2>/dev/null || true
     
     log_success "System user configured"
@@ -446,62 +473,6 @@ configure_log_retention() {
     systemctl restart systemd-journald
     
     log_success "Log retention configured (500MB max, 30 days)"
-}
-
-configure_vnc() {
-    if command -v raspi-config >/dev/null; then
-        log_info "Configuring RealVNC..."
-        
-        local vnc_state
-        vnc_state=$(raspi-config nonint get_vnc 2>/dev/null || echo "1")
-        
-        if [[ "${vnc_state}" -eq 0 ]]; then
-            log_info "RealVNC is already enabled"
-        else
-            raspi-config nonint do_vnc 0
-            log_success "RealVNC enabled"
-        fi
-    else
-        log_info "raspi-config not found, skipping VNC setup"
-    fi
-}
-
-apply_system_optimizations() {
-    log_info "Applying system optimizations..."
-    
-    # Swap optimization for Pi
-    if [[ -f /etc/dphys-swapfile ]]; then
-        local current_swap
-        current_swap=$(grep "^CONF_SWAPSIZE=" /etc/dphys-swapfile | cut -d= -f2)
-        if [[ -z "${current_swap}" ]] || [[ "${current_swap}" -lt 1024 ]]; then
-            log_info "Increasing swap to 1GB..."
-            sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=1024/' /etc/dphys-swapfile
-            systemctl restart dphys-swapfile
-        fi
-    fi
-    
-    # Disable unnecessary services
-    local services_to_disable=(
-        bluetooth
-        hciuart
-        triggerhappy
-    )
-    
-    for svc in "${services_to_disable[@]}"; do
-        systemctl disable "${svc}" 2>/dev/null || true
-        systemctl stop "${svc}" 2>/dev/null || true
-    done
-    
-    # Enable useful services
-    systemctl enable systemd-timesyncd
-    systemctl start systemd-timesyncd
-    
-    # Configure timezone if not set
-    if [[ "$(cat /etc/timezone 2>/dev/null)" == "Etc/UTC" ]]; then
-        log_warn "Timezone is UTC. Consider setting your local timezone with: raspi-config"
-    fi
-    
-    log_success "System optimizations applied"
 }
 
 # Run main

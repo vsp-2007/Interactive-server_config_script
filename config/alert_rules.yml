@@ -42,7 +42,7 @@ groups:
 
       # Disk space
       - alert: DiskSpaceLow
-        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 15
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} ) * 100 < 15
         for: 5m
         labels:
           severity: warning
@@ -51,7 +51,7 @@ groups:
           description: "Root filesystem has less than 15% free space"
 
       - alert: DiskSpaceCritical
-        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 5
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} ) * 100 < 5
         for: 1m
         labels:
           severity: critical

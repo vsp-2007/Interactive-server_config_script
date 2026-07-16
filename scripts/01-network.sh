@@ -1,8 +1,12 @@
 #!/bin/bash
-# Network Module - Pi Server Setup v2
+# Network Module - Pi Server Setup v2 (Multi-platform)
 # Tailscale, Static IP (optional), Firewall integration
 
 set -euo pipefail
+
+# Source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 
 # Colors
 readonly RED='\033[0;31m'
@@ -25,6 +29,9 @@ STATIC_DNS="${STATIC_DNS:-1.1.1.1}"
 
 main() {
     log_info "Starting Network setup..."
+    
+    # Detect platform
+    detect_platform
     
     # 1. Install and configure Tailscale
     setup_tailscale
@@ -56,13 +63,14 @@ setup_tailscale() {
         ts_ip=$(tailscale ip -4 2>/dev/null | head -1)
         log_info "Tailscale IP: ${ts_ip}"
         
-        read -rp "Re-authenticate Tailscale? [y/N] " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            tailscale logout
-        else
-            return 0
+        if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+            read -rp "Re-authenticate Tailscale? [y/N] " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                return 0
+            fi
         fi
+        tailscale logout
     fi
     
     # Prepare tailscale up arguments
@@ -153,9 +161,11 @@ configure_static_ip() {
     log_warn "router instead of configuring static IP on the device."
     log_warn "================================================================"
     
-    read -rp "Are you sure you want to configure static IP on this device? [y/N] " -n 1 -r
-    echo
-    [[ ! $REPLY =~ ^[Yy]$ ]] && { log_info "Skipping static IP configuration"; return 0; }
+    if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+        read -rp "Are you sure you want to configure static IP on this device? [y/N] " -n 1 -r
+        echo
+        [[ ! $REPLY =~ ^[Yy]$ ]] && { log_info "Skipping static IP configuration"; return 0; }
+    fi
     
     log_info "Configuring static IP: ${STATIC_IP}"
     
@@ -185,9 +195,11 @@ configure_static_ip() {
     log_info "Gateway: ${gateway}"
     log_info "DNS: ${dns}"
     
-    read -rp "Confirm these settings? [y/N] " -n 1 -r
-    echo
-    [[ ! $REPLY =~ ^[Yy]$ ]] && { log_info "Cancelled"; return 0; }
+    if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+        read -rp "Confirm these settings? [y/N] " -n 1 -r
+        echo
+        [[ ! $REPLY =~ ^[Yy]$ ]] && { log_info "Cancelled"; return 0; }
+    fi
     
     # Backup dhcpcd.conf
     cp /etc/dhcpcd.conf "/etc/dhcpcd.conf.bak.$(date +%Y%m%d_%H%M%S)"
