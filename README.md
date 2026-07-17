@@ -1,8 +1,8 @@
-# Pi Server Setup v2
+# Pi Server Setup v3
 
 > **Transform any Debian 13+ machine (Raspberry Pi, laptop, VM, server) into a production-ready, observable, and secure home server.**
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/vsp-2007/Interactive-server_config_script)
+[![Version](https://img.shields.io/badge/version-3.0.0-blue)](https://github.com/vsp-2007/Interactive-server_config_script)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Debian%2013%20(Trixie)%20%7C%2012%20(Bookworm)-red)](https://www.debian.org/releases/)
 [![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64%20%7C%20armv7-orange)]()
@@ -88,8 +88,8 @@
 ### Installation
 
 ```bash
-# 1. Clone the development branch
-git clone -b v2-development https://github.com/vsp-2007/Interactive-server_config_script.git
+# 1. Clone the v3-alpha branch
+git clone -b v3-alpha https://github.com/vsp-2007/Interactive-server_config_script.git
 cd Interactive-server_config_script
 
 # 2. Copy and configure settings
@@ -415,7 +415,7 @@ systemd-analyze verify systemd/*.service
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Run linting: `shellcheck scripts/*.sh && yamllint config/`
 4. Commit with conventional commits (`feat:`, `fix:`, `docs:`, etc.)
-5. Push and open a Pull Request
+5. Push and open a Pull Request targeting `v3-alpha`
 
 ---
 

@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2025-07-17
+
+### Added
+- **Modular VPN Selection**: Choose between Pangolin, Tailscale, Both, or None at install time
+- **Ollama LLM Module**: Local LLM inference with hardware-aware model selection (auto-detects GPU/RAM/CPU)
+- **Interactive Config Prompts**: VPN provider, exit nodes, Ollama models auto-selected based on hardware
+- **Skip OS Check Flag**: `--skip-os-check` for dry-run/testing from non-Debian hosts (Arch, etc.)
+- **Pangolin VPN Support** (https://pangolin.net/): MagicDNS, exit nodes, subnet routes, Pi-hole integration
+- **Comprehensive Documentation**: Pangolin & Tailscale setup guides in `docs/`
+
+### Changed
+- **Version bumped to 3.0.0** with v3-alpha branch
+- **Network Module**: Modular VPN selection (Pangolin/Tailscale/Both/None)
+- **Architecture Diagram**: Updated to show Pangolin VPN
+- **Module Summary**: Network module now shows both VPN providers
+- **README**: Updated to v3, v3-alpha branch references, new modules
+
+### Security
+- **Idempotent Design**: State tracking prevents re-running completed steps
+- **Conditional UFW Rules**: Only add Tailscale/Pangolin rules when interfaces exist
+- **Tool Dependency Checks**: Verify required tools before use with auto-install fallback
+- **Fallocate Fallback**: Swap creation uses `dd` fallback if `fallocate` fails
+- **Pi-Specific Guards**: All Raspberry Pi configs check file/command existence first
+
+### Fixed
+- **Debian PC Compatibility**: Works on generic Debian/Ubuntu, not just Raspberry Pi
+- **OS Check Bypass**: `--skip-os-check` flag for dry-run from non-Debian hosts (Arch, etc.)
+- **Dry-Run Order**: Directory creation before logging to avoid tee errors
+
 ## [2.0.0] - 2024-12-19
 
 ### Added
