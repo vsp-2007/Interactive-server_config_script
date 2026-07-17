@@ -4,18 +4,11 @@
 
 set -euo pipefail
 
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
-readonly BLUE='\033[0;34m'
-readonly NC='\033[0m'
+# Source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 
-log_info()    { echo -e "${BLUE}[INFO]${NC} $*"; }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $*"; }
-log_warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
-log_error()   { echo -e "${RED}[ERROR]${NC} $*"; }
-
-# Config
+# Configuration
 STIRLING_PDF_VERSION="${STIRLING_PDF_VERSION:-2.4.5}"
 STIRLING_PDF_PORT="${STIRLING_PDF_PORT:-8080}"
 STIRLING_PDF_MEMORY_MIN="${STIRLING_PDF_MEMORY_MIN:-512m}"
@@ -96,12 +89,13 @@ configure_swap() {
     
     if [[ -f /etc/dphys-swapfile ]]; then
         local current_swap
-        current_swap=$(grep "^CONF_SWAPSIZE=" /etc/dphys-swapfile | cut -d= -f2)
+        # Handle commented or uncommented CONF_SWAPSIZE
+        current_swap=$(grep -E '^#?CONF_SWAPSIZE=' /etc/dphys-swapfile | tail -1 | cut -d= -f2)
         current_swap=${current_swap:-0}
         
         if [[ "${current_swap}" -lt 2048 ]]; then
             log_info "Increasing swap to 2GB (was ${current_swap}MB)..."
-            sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
+            sed -i 's/^#*CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
             systemctl restart dphys-swapfile
             log_success "Swap increased to 2GB"
         else
@@ -244,14 +238,14 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=${APP_DIR} /tmp
+ReadWritePaths=/opt/Stirling-PDF /tmp
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
 RestrictRealtime=yes
 RestrictNamespaces=yes
 LockPersonality=yes
-MemoryDenyWriteExecute=yes
+# MemoryDenyWriteExecute=yes - disabled for Java JIT compilation
 SystemCallFilter=@system-service
 SystemCallErrorNumber=EPERM
 

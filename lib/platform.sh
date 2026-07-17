@@ -329,7 +329,9 @@ get_extra_user_groups() {
         )
     fi
     
-    echo "${adjusted_groups[@]}"
+    # Return comma-separated for useradd -G
+    local IFS=","
+    echo "${adjusted_groups[*]}"
 }
 
 # Platform-specific VNC setup

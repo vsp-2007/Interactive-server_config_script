@@ -296,7 +296,7 @@ install_grafana() {
     fi
     
     # Install dependencies
-    apt-get install -y -qq apt-transport-https software-properties-common wget libfontconfig1 musl
+    apt-get install -y -qq apt-transport-https wget libfontconfig1 musl gpg
     
     # Add Grafana repository
     mkdir -p /etc/apt/keyrings/

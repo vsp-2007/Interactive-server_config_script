@@ -45,7 +45,7 @@ log_info()    { _log "INFO"    "${BLUE}${*}${NC}"; }
 log_success() { _log "SUCCESS" "${GREEN}${*}${NC}"; }
 log_warn()    { _log "WARN"    "${YELLOW}${*}${NC}"; }
 log_error()   { _log "ERROR"   "${RED}${*}${NC}"; }
-log_debug()   { [[ "${DEBUG:-false}" == "true" ]] && _log "DEBUG" "${DIM}${*}${NC}"; }
+log_debug()   { [[ "${DEBUG:-false}" == "true" ]] && _log "DEBUG" "${DIM}${*}${NC}" || true; }
 
 # ============================================================================
 # UTILITIES

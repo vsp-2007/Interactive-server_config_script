@@ -431,7 +431,7 @@ save_config_var() {
 
 select_modules() {
     local selected_modules="$1"
-    local interactive="${2:-true}"
+    local non_interactive="${2:-false}"
     
     if [[ -n "${selected_modules}" ]]; then
         # Parse comma-separated list
@@ -439,7 +439,7 @@ select_modules() {
         return 0
     fi
     
-    if [[ "${interactive}" != "true" ]]; then
+    if [[ "${non_interactive}" == "true" ]]; then
         # Default to all modules in non-interactive mode
         MODULES_TO_INSTALL=($(printf '%s\n' "${MODULES[@]}" | cut -d':' -f1))
         return 0
@@ -758,7 +758,10 @@ EOF
     fi
     
     # Prompt for missing config in interactive mode
-    prompt_missing_config "${config_file}" "${non_interactive}"
+    # Only prompt when NOT in non-interactive mode
+    if [[ "${non_interactive}" != "true" ]]; then
+        prompt_missing_config "${config_file}" "true"
+    fi
     
     # Select modules
     select_modules "${modules_arg}" "${non_interactive}"
