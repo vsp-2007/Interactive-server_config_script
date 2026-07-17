@@ -421,6 +421,9 @@ install_tui_tool() {
 }
 
 run_tui_mode() {
+    # CRITICAL: Setup directories FIRST for logging
+    setup_directories
+    
     log_info "Starting TUI mode..."
     
     if ! check_tui_tool; then
@@ -545,9 +548,12 @@ run_tui_mode() {
 }
 
 # ============================================================================
-# MAIN
+# MAIN - setup_directories() called IMMEDIATELY at start
 # ============================================================================
 main() {
+    # CRITICAL: Setup directories BEFORE ANYTHING ELSE
+    setup_directories
+    
     local config_file="${CONFIG_FILE_DEFAULT}" modules_arg="" non_interactive=false dry_run=false repair_mode=false uninstall_mode=false
     TUI_MODE=false
     
@@ -592,7 +598,7 @@ EOF
         esac; shift
     done
     
-    # Experimental warning
+    # Experimental warning (now logs to file since dirs exist)
     echo -e "${BOLD}${YELLOW}╔═══════════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${BOLD}${YELLOW}║                    ⚠️  EXPERIMENTAL v${SCRIPT_VERSION}                    ║${NC}"
     echo -e "${BOLD}${YELLOW}║  This is experimental software. Use CLI for production.          ║${NC}"
@@ -638,7 +644,7 @@ EOF
     log_info "Starting ${PROJECT_NAME} v${SCRIPT_VERSION} (CLI Mode)"
     log_info "Log file: ${LOG_FILE}"
     
-    check_root; check_os; check_arch; setup_directories
+    check_root; check_os; check_arch
     
     [[ ! -f "${config_file}" ]] && [[ -f "${CONFIG_FILE_DEFAULT}" ]] && config_file="${CONFIG_FILE_DEFAULT}"
     [[ ! -f "${config_file}" ]] && die "Config file not found. Copy config/settings.conf.example to settings.conf"
