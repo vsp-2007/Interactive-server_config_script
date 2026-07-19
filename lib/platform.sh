@@ -16,7 +16,7 @@ DISTRO_CODENAME=""
 
 # State tracking for idempotency (backported from v3)
 STATE_DIR="/var/lib/pi-server-setup/state"
-mkdir -p "${STATE_DIR}"
+mkdir -p "${STATE_DIR}" 2>/dev/null || true
 
 is_configured() {
     [[ -f "${STATE_DIR}/network.state" ]] && grep -q "^${1}=true$" "${STATE_DIR}/network.state" 2>/dev/null
@@ -256,7 +256,11 @@ get_temperature() {
         laptop|generic|vm)
             # Try to read from thermal zones
             local max_temp=0
-            for zone in /sys/class/thermal/thermal_zone*/temp 2>/dev/null; do
+            local zones=()
+            for zone in /sys/class/thermal/thermal_zone*/temp; do
+                [[ -f "${zone}" ]] && zones+=("${zone}")
+            done
+            for zone in "${zones[@]}"; do
                 if [[ -f "${zone}" ]]; then
                     local temp
                     temp=$(cat "${zone}" 2>/dev/null || echo 0)

@@ -87,7 +87,7 @@ _log() {
     local output="${timestamp} [${level}] ${msg}"
     
     printf '%s\n' "${output}"
-    # Try to log to file if directory exists
+    
     [[ -d "${LOG_DIR}" ]] && printf '%s\n' "${output}" >> "${LOG_FILE}" 2>/dev/null || true
 }
 
@@ -205,8 +205,8 @@ validate_config() {
 # ============================================================================
 prompt_missing_config() {
     local config_file="$1"
-    local interactive="${2:-true}"
-    [[ "${interactive}" != "true" ]] && return 0
+    local non_interactive="${2:-false}"
+    [[ "${non_interactive}" == "true" ]] && return 0
     
     echo -e "\n${BOLD}${CYAN}=== Interactive Configuration ===${NC}"
     echo "Missing required values will be prompted. Press Enter to use defaults or generate random values."
@@ -285,7 +285,7 @@ prompt_missing_config() {
 
 save_config_var() {
     local var_name="$1" var_value="$2" config_file="$3"
-    local escaped_value; escaped_value=$(printf '%s\n' "${var_value}" | sed 's/[[\.*^$()+?{|\\]/\\&/g')
+    local escaped_value; escaped_value=$(printf '%s\n' "${var_value}" | sed 's/[[\\.*^$()+?{|\\]/\\&/g')
     if grep -q "^${var_name}=" "${config_file}"; then
         sed -i "s|^${var_name}=.*|${var_name}=\"${escaped_value}\"|" "${config_file}"
     else
@@ -300,7 +300,7 @@ save_config_var() {
 select_modules() {
     local selected_modules="$1" non_interactive="${2:-false}"
     [[ -n "${selected_modules}" ]] && { IFS=',' read -ra MODULES_TO_INSTALL <<< "${selected_modules}"; return 0; }
-    [[ "${non_interactive}" != "false" ]] && { MODULES_TO_INSTALL=($(printf '%s\n' "${MODULES[@]}" | cut -d':' -f1)); return 0; }
+    [[ "${non_interactive}" == "true" ]] && { MODULES_TO_INSTALL=($(printf '%s\n' "${MODULES[@]}" | cut -d':' -f1)); return 0; }
     
     echo -e "\n${BOLD}Select modules to install:${NC}"
     echo "Enter comma-separated numbers (e.g., 1,3,5) or 'all' for everything."
@@ -373,46 +373,45 @@ execute_module() {
     log_info "Executing module: ${module} (${script_name})"
     chmod +x "${script_path}"
     set -a; source "${CONFIG_FILE}"; set +a
-    if "${script_path}"; then log_success "Module ${module} completed"; mark_module_installed "${module}"; return 0; else log_error "Module ${module} failed"; return $?; fi
+    if "${script_path}"; then 
+        log_success "Module ${module} completed"
+        mark_module_installed "${module}"
+        return 0
+    else 
+        log_error "Module ${module} failed"
+        return $?
+    fi
 }
 
-show_summary() {
+generate_summary() {
     local ip; ip=$(hostname -I | awk '{print $1}')
-    echo
-    echo -e "${BOLD}${CYAN}=========================================${NC}"
-    echo -e "${BOLD}${CYAN}   INSTALLATION SUMMARY${NC}"
-    echo -e "${BOLD}${CYAN}=========================================${NC}"
-    echo -e "Device IP: ${GREEN}${ip}${NC}"
-    echo
-    
+    local summary="Installation Complete!\n\nDevice IP: ${ip}\n\n"
     for module in "${MODULES_TO_INSTALL[@]}"; do
-        local state=$(get_module_state "${module}")
-        if [[ "${state}" == "installed" ]]; then
-            echo -e "${GREEN}✓${NC} ${module}"
+        if [[ -f "${STATE_DIR}/${module}.installed" ]]; then
+            summary+="✓ ${module}\n"
             case "${module}" in
-                system) echo "    SSH: ssh ${PI_USER}@${ip}"; echo "    VNC: ${ip}:5900" ;;
-                network) echo "    Tailscale: Connected" ;;
-                pihole) echo "    Web UI: http://${ip}/admin"; echo "    Password: ${PIHOLE_PASSWORD}" ;;
-                monitoring) echo "    Prometheus: http://${ip}:9090"; echo "    Grafana: http://${ip}:3000 (admin / ${GRAFANA_ADMIN_PASSWORD})"; echo "    Alertmanager: http://${ip}:9093" ;;
-                samba) echo "    Webmin: https://${ip}:10000"; echo "    Samba: \\\\${ip}\\${SMB_SHARE_NAME:-pishare}" ;;
-                telegram) echo "    Service: telegram-bot.service" ;;
-                localsend) echo "    Port: 53317" ;;
-                stirling) echo "    URL: http://${ip}:8080" ;;
-                nginx) echo "    Domains: dashboard.home, pi.home, n8n.home, etc."; echo "    Configure DNS in Pi-hole: http://${ip}:8081/admin/dns_records.php" ;;
-                cockpit) echo "    URL: https://${ip}:9091" ;;
-                n8n) echo "    URL: http://${ip}:5678 (or http://n8n.home)" ;;
+                system) summary+="    SSH: ssh ${PI_USER}@${ip}\n    VNC: ${ip}:5900\n" ;;
+                network) summary+="    Tailscale: Connected\n" ;;
+                pihole) summary+="    Web UI: http://${ip}/admin\n    Password: ${PIHOLE_PASSWORD}\n" ;;
+                monitoring) summary+="    Prometheus: http://${ip}:9090\n    Grafana: http://${ip}:3000 (admin / ${GRAFANA_ADMIN_PASSWORD})\n    Alertmanager: http://${ip}:9093\n" ;;
+                samba) summary+="    Webmin: https://${ip}:10000\n    Samba: \\\\${ip}\\${SMB_SHARE_NAME:-pishare}\n" ;;
+                telegram) summary+="    Service: telegram-bot.service\n" ;;
+                localsend) summary+="    Port: 53317\n" ;;
+                stirling) summary+="    URL: http://${ip}:8080\n" ;;
+                nginx) summary+="    Domains: dashboard.home, pi.home, n8n.home, etc.\n    Configure DNS in Pi-hole: http://${ip}:8081/admin/dns_records.php\n" ;;
+                cockpit) summary+="    URL: https://${ip}:9091\n" ;;
+                n8n) summary+="    URL: http://${ip}:5678 (or http://n8n.home)\n" ;;
             esac
-            echo
+            summary+="\n"
         else
-            echo -e "${RED}✗${NC} ${module} (failed or skipped)"
-            echo
+            summary+="✗ ${module} (failed or skipped)\n\n"
         fi
     done
-    echo -e "${BOLD}${CYAN}=========================================${NC}"
-    echo -e "${BOLD}${GREEN}Installation Complete!${NC}"
-    echo -e "Log file: ${LOG_FILE}"
-    echo -e "${BOLD}${CYAN}=========================================${NC}"
+    summary+="\nLog file: ${LOG_FILE}\n"
+    echo -e "$summary"
 }
+
+show_summary() { generate_summary; }
 
 # ============================================================================
 # SETUP DIRECTORIES (must be called after check_root)
@@ -450,7 +449,7 @@ Options:
   --uninstall            Uninstall modules
   --skip-os-check        Skip OS/distribution check (for testing/dry-run on non-Debian)
 
-Available modules: $(printf '%s, ' "${MODULES[@]}" | sed 's/:.*//g' | sed 's/, $//')
+Available modules: system, network, pihole, monitoring, samba, utils, telegram, localsend, stirling, nginx, cockpit, n8n
 
 Examples:
   sudo ./install.sh                          # Interactive full install
@@ -469,11 +468,17 @@ EOF
         esac; shift
     done
     
+    # Experimental warning banner
+    echo -e "${BOLD}${YELLOW}╔═══════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${YELLOW}║                    ⚠️  EXPERIMENTAL v${SCRIPT_VERSION}                    ║${NC}"
+    echo -e "${BOLD}${YELLOW}║  This is experimental software. Use CLI for production.             ║${NC}"
+    echo -e "${BOLD}${YELLOW}╚═══════════════════════════════════════════════════════════════════════╝${NC}"
+    echo
+    
     # Allow dry-run without root
     if [[ "${dry_run}" == "true" ]]; then
         log_info "Running in dry-run mode (no root required)"
     else
-        # Check root FIRST - before any directory creation
         check_root
     fi
     
@@ -502,7 +507,6 @@ EOF
         check_os
         check_arch
     else
-        # In dry-run, skip all system checks
         log_info "Dry-run: skipping OS/arch/tool checks"
     fi
     
@@ -537,7 +541,15 @@ EOF
     local total=${#MODULES_TO_INSTALL[@]} current=0 failed=()
     for module in "${MODULES_TO_INSTALL[@]}"; do
         ((current++)); show_progress "${current}" "${total}" "${module}"; echo
-        if execute_module "${module}"; then log_success "Module ${module} completed"; else log_error "Module ${module} failed"; failed+=("${module}"); [[ "${non_interactive}" == "true" ]] && die "Module ${module} failed in non-interactive mode"; read -rp "Continue? [Y/n] " -n 1 -r; echo; [[ ! $REPLY =~ ^[Yy]$ ]] && break; fi
+        if execute_module "${module}"; then 
+            log_success "Module ${module} completed"
+        else 
+            log_error "Module ${module} failed"
+            failed+=("${module}")
+            [[ "${non_interactive}" == "true" ]] && die "Module ${module} failed in non-interactive mode"
+            read -rp "Continue? [Y/n] " -n 1 -r; echo
+            [[ ! $REPLY =~ ^[Yy]$ ]] && break
+        fi
     done
     show_summary
     [[ ${#failed[@]} -gt 0 ]] && { log_warn "Failed modules: ${failed[*]}"; exit 1; }
