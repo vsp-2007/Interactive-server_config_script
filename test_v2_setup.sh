@@ -125,8 +125,8 @@ phase3_cli_test() {
     fi
     
     # Check log file was created
-    if [[ -f /var/log/pi-server-setup/install_*.log ]]; then
-        log_success "Log file created in /var/log/pi-server-setup/"
+    if [[ -f /var/log/Interactive-server_config_script/install_*.log ]]; then
+        log_success "Log file created in /var/log/Interactive-server_config_script/"
     else
         log_warn "Log file not found in expected location"
     fi
@@ -215,7 +215,7 @@ main() {
     echo
     echo -e "${BOLD}${GREEN}=== All Tests Completed ===${NC}"
     echo "Check output above for any failures."
-    echo "Log files in /var/log/pi-server-setup/"
+    echo "Log files in /var/log/Interactive-server_config_script/"
 }
 
 main "$@"

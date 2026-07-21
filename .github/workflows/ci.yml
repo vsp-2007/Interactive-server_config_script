@@ -108,7 +108,7 @@ jobs:
       - name: Create release archive
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          ARCHIVE="pi-server-setup-v${VERSION}.tar.gz"
+          ARCHIVE="Interactive-server_config_script-v${VERSION}.tar.gz"
           tar -czf "${ARCHIVE}" \
             --exclude='.git' \
             --exclude='*.log' \

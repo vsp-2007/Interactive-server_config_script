@@ -4,28 +4,23 @@
 
 set -euo pipefail
 
-# Source common functions
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || {
-    # Fallback logging if common.sh not available
-    readonly RED='\033[0;31m'
-    readonly GREEN='\033[0;32m'
-    readonly YELLOW='\033[1;33m'
-    readonly BLUE='\033[0;34m'
-    readonly NC='\033[0m'
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly NC='\033[0m'
 
-    log_info()    { echo -e "${BLUE}[INFO]${NC} $*"; }
-    log_success() { echo -e "${GREEN}[SUCCESS]${NC} $*"; }
-    log_warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
-    log_error()   { echo -e "${RED}[ERROR]${NC} $*"; }
-    log_debug()   { [[ "${DEBUG:-false}" == "true" ]] && echo -e "${NC}[DEBUG]${NC} $*" || true; }
-}
+log_info()    { echo -e "${BLUE}[INFO]${NC} $*"; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $*"; }
+log_warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
+log_error()   { echo -e "${RED}[ERROR]${NC} $*"; }
 
 # Config
 TELEGRAM_ADMIN_TOKEN="${TELEGRAM_ADMIN_TOKEN:-}"
 TELEGRAM_ADMIN_CHAT_ID="${TELEGRAM_ADMIN_CHAT_ID:-}"
 TELEGRAM_USER_TOKEN="${TELEGRAM_USER_TOKEN:-}"
 TELEGRAM_USER_CHAT_ID="${TELEGRAM_USER_CHAT_ID:-}"
+PI_USER="${PI_USER:-piadmin}"
 
 APP_DIR="/opt/pi-server-bot"
 VENV_DIR="${APP_DIR}/venv"
@@ -94,7 +89,7 @@ deploy_bot_script() {
     cat > "${BOT_SCRIPT}" <<'PYTHON_SCRIPT'
 #!/usr/bin/env python3
 """
-Pi Server Dual Telegram Bot
+Interactive-server_config_script Dual Telegram Bot
 - Admin Bot: Private control, system management, alerts
 - User Bot: Public status reporting, group notifications
 
@@ -147,7 +142,7 @@ class BotConfig:
     # Security
     allowed_admin_commands: Set[str] = field(default_factory=lambda: {
         "reboot", "restart", "pihole", "status", "pihole_stats",
-        "approve", "deny", "announce", "pdr", "shutdown"
+        "approve", "deny", "announce", "pdr", "shutdown", "help"
     })
     allowed_user_commands: Set[str] = field(default_factory=lambda: {
         "start", "status", "pihole_stats", "pdr", "help"
@@ -509,262 +504,262 @@ async def user_pdr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             parse_mode=ParseMode.HTML
         )
     except Exception as e:
-        logger.error(f"Failed to notify admin: {e}")
+        logger.error(f"Failed to notify Admin: {e}")
+        await update.message.reply_text(f"⚠️ Warning: Could not forward to Admin Bot.\nError: {e}")
     
-    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "pdr", [duration], True)
+    audit_log(update.effective_user.id, username, "pdr", [duration], True)
+
+async def user_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "🤖 <b>Interactive-server_config_script Bot Help</b>\n\n"
+        "<b>User Commands:</b>\n"
+        "/start - Register for notifications\n"
+        "/status - Full system report\n"
+        "/pihole_stats - Pi-hole statistics\n"
+        "/pdr <duration> - Request Pi-hole disable (e.g., /pdr 10m)\n"
+        "/help - This message",
+        parse_mode=ParseMode.HTML
+    )
 
 # =============================================================================
 # ADMIN BOT HANDLERS
 # =============================================================================
 
-async def admin_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def admin_check(update: Update) -> bool:
     if not check_admin_access(update.effective_chat.id):
+        audit_log(
+            update.effective_user.id,
+            update.effective_user.username or "unknown",
+            "unauthorized_access",
+            [update.message.text or ""],
+            False
+        )
+        await update.message.reply_text("❌ Unauthorized. Admin only.")
+        return False
+    return True
+
+async def admin_reboot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await admin_check(update):
+        return
+    if not validate_command_args(context.args):
+        await update.message.reply_text("❌ Invalid arguments")
         return
     
-    if not rate_limiter.check(update.effective_user.id):
-        await update.message.reply_text("⏳ Rate limited. Please wait.")
+    await update.message.reply_text("⚠️ Rebooting in 5 seconds...")
+    await asyncio.sleep(5)
+    await run_command(["sudo", "reboot"])
+    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "reboot", [], True)
+
+async def admin_shutdown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await admin_check(update):
+        return
+    await update.message.reply_text("⚠️ Shutting down in 5 seconds...")
+    await asyncio.sleep(5)
+    await run_command(["sudo", "shutdown", "now"])
+    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "shutdown", [], True)
+
+async def admin_restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await admin_check(update):
+        return
+    if not context.args or not validate_command_args(context.args):
+        await update.message.reply_text("Usage: /restart <service_name>")
         return
     
-    await update.message.reply_text(
-        "👋 Hello Admin! I'm the Pi Server Admin Bot.\n"
-        "Commands:\n"
-        "/status - System report\n"
-        "/pihole_stats - Pi-hole statistics\n"
-        "/reboot - Reboot the server\n"
-        "/restart <service> - Restart a service\n"
-        "/pihole - Enable/Disable Pi-hole\n"
-        "/approve <id> - Approve Pi-hole disable request\n"
-        "/deny <id> - Deny Pi-hole disable request\n"
-        "/announce <message> - Announce to all user bot subscribers\n"
-        "/pdr - List pending Pi-hole disable requests\n"
-        "/shutdown - Shutdown the server\n"
-        "/help - Show this help"
-    )
-    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "start", [], True)
+    service = context.args[0]
+    # Validate service name (alphanumeric, dash, underscore, dot)
+    import re
+    if not re.match(r'^[a-zA-Z0-9._-]+$', service):
+        await update.message.reply_text("❌ Invalid service name")
+        return
+    
+    await update.message.reply_text(f"🔄 Restarting {service}...")
+    _, _, code = await run_command(["sudo", "systemctl", "restart", service])
+    
+    if code == 0:
+        await update.message.reply_text(f"✅ {service} restarted")
+    else:
+        await update.message.reply_text(f"❌ Failed to restart {service}")
+    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "restart", [service], code == 0)
+
+async def admin_pihole(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await admin_check(update):
+        return
+    if not context.args or context.args[0] not in ["enable", "disable"]:
+        await update.message.reply_text("Usage: /pihole <enable|disable> [duration]")
+        return
+    if not validate_command_args(context.args):
+        await update.message.reply_text("❌ Invalid arguments")
+        return
+    
+    cmd = context.args[0]
+    full_cmd = ["pihole", cmd]
+    if len(context.args) > 1:
+        full_cmd.append(context.args[1])
+    
+    await update.message.reply_text(f"🛡️ Running: pihole {cmd}...")
+    stdout, stderr, code = await run_command(full_cmd)
+    
+    if code == 0:
+        await update.message.reply_text(f"✅ Done:\n<code>{stdout}</code>", parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text(f"❌ Failed:\n<code>{stderr or stdout}</code>", parse_mode=ParseMode.HTML)
+    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "pihole", context.args, code == 0)
+
+async def admin_approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await admin_check(update):
+        return
+    if not context.args or not validate_command_args(context.args):
+        await update.message.reply_text("Usage: /approve <req_id>")
+        return
+    
+    load_pending_requests()
+    
+    try:
+        req_id = int(context.args[0].replace("#", ""))
+    except ValueError:
+        await update.message.reply_text("❌ Invalid Request ID")
+        return
+    
+    req = pending_disable_requests.pop(req_id, None)
+    if not req:
+        await update.message.reply_text("❌ Request not found or already handled")
+        return
+    
+    save_pending_requests()
+    
+    # Execute
+    duration = req["duration"]
+    _, _, code = await run_command(["pihole", "disable", duration])
+    
+    if code == 0:
+        await update.message.reply_text(f"✅ Approved #{req_id}. Pi-hole disabled for {duration}")
+    else:
+        await update.message.reply_text(f"❌ Approved but command failed")
+    
+    # Notify user
+    if CONFIG.user_token:
+        try:
+            user_bot = Bot(token=CONFIG.user_token)
+            await user_bot.send_message(
+                chat_id=req["chat_id"],
+                text=f"✅ Your request to disable Pi-hole for {duration} was <b>APPROVED</b>.",
+                parse_mode=ParseMode.HTML
+            )
+        except Exception as e:
+            logger.error(f"Failed to notify user: {e}")
+    
+    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "approve", [str(req_id)], True)
+
+async def admin_deny(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await admin_check(update):
+        return
+    if not context.args or not validate_command_args(context.args):
+        await update.message.reply_text("Usage: /deny <req_id>")
+        return
+    
+    load_pending_requests()
+    
+    try:
+        req_id = int(context.args[0].replace("#", ""))
+    except ValueError:
+        await update.message.reply_text("❌ Invalid Request ID")
+        return
+    
+    req = pending_disable_requests.pop(req_id, None)
+    if not req:
+        await update.message.reply_text("❌ Request not found")
+        return
+    
+    save_pending_requests()
+    await update.message.reply_text(f"❌ Denied #{req_id}")
+    
+    # Notify user
+    if CONFIG.user_token:
+        try:
+            user_bot = Bot(token=CONFIG.user_token)
+            await user_bot.send_message(
+                chat_id=req["chat_id"],
+                text="❌ Your Pi-hole disable request was <b>DENIED</b>.",
+                parse_mode=ParseMode.HTML
+            )
+        except Exception:
+            pass
+    
+    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "deny", [str(req_id)], True)
+
+async def admin_announce(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await admin_check(update):
+        return
+    if not context.args:
+        await update.message.reply_text("Usage: /announce <message>")
+        return
+    
+    message = " ".join(context.args)
+    if not validate_command_args([message], max_args=1):
+        await update.message.reply_text("❌ Invalid message")
+        return
+    
+    subscribers = load_broadcast_list()
+    if not subscribers:
+        await update.message.reply_text("No subscribers")
+        return
+    
+    if not CONFIG.user_token:
+        await update.message.reply_text("❌ User bot token not configured")
+        return
+    
+    user_bot = Bot(token=CONFIG.user_token)
+    sent = 0
+    formatted = f"📢 <b>ANNOUNCEMENT</b>\n\n{message}"
+    
+    for chat_id in subscribers:
+        try:
+            await user_bot.send_message(chat_id=chat_id, text=formatted, parse_mode=ParseMode.HTML)
+            sent += 1
+        except Exception:
+            pass
+    
+    await update.message.reply_text(f"✅ Sent to {sent}/{len(subscribers)} subscribers")
+    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "announce", [message[:50]], True)
+
+async def admin_pdr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Admin shortcut to disable Pi-hole"""
+    if not await admin_check(update):
+        return
+    if not validate_command_args(context.args):
+        await update.message.reply_text("❌ Invalid arguments")
+        return
+    
+    duration = context.args[0] if context.args else "5m"
+    import re
+    if not re.match(r'^\d+[smhd]$', duration):
+        await update.message.reply_text("❌ Invalid duration format")
+        return
+    
+    await update.message.reply_text(f"⏳ Disabling Pi-hole for {duration}...")
+    _, _, code = await run_command(["pihole", "disable", duration])
+    
+    if code == 0:
+        await update.message.reply_text(f"✅ Pi-hole disabled for {duration}")
+    else:
+        await update.message.reply_text("❌ Failed")
+    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "pdr", [duration], code == 0)
 
 async def admin_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not check_admin_access(update.effective_chat.id):
+    if not await admin_check(update):
         return
-    
-    if not rate_limiter.check(update.effective_user.id):
-        await update.message.reply_text("⏳ Rate limited.")
-        return
-    
     report = await get_system_stats()
     await update.message.reply_text(report, parse_mode=ParseMode.HTML)
     audit_log(update.effective_user.id, update.effective_user.username or "unknown", "status", [], True)
 
 async def admin_pihole_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not check_admin_access(update.effective_chat.id):
+    if not await admin_check(update):
         return
-    
-    if not rate_limiter.check(update.effective_user.id):
-        await update.message.reply_text("⏳ Rate limited.")
-        return
-    
-    try:
-        stdout, _, code = await run_command(["pihole", "-c", "-j"])
-        if code != 0:
-            raise Exception(stdout)
-        stats = json.loads(stdout)
-        
-        summary = (
-            f"🛡️ <b>Pi-hole Status</b>\n\n"
-            f"Queries Today: {stats.get('dns_queries_today', 'N/A')}\n"
-            f"Ads Blocked: {stats.get('ads_blocked_today', 'N/A')}\n"
-            f"Percentage: {stats.get('ads_percentage_today', 'N/A')}%\n"
-            f"Domains Blocked: {stats.get('domains_being_blocked', 'N/A')}\n"
-            f"Status: {'Active ✅' if stats.get('status') == 'enabled' else 'Disabled ❌'}"
-        )
-        await update.message.reply_text(summary, parse_mode=ParseMode.HTML)
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
-    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "pihole_stats", [], True)
-
-async def admin_reboot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not check_admin_access(update.effective_chat.id):
-        return
-    
-    if not rate_limiter.check(update.effective_user.id):
-        await update.message.reply_text("⏳ Rate limited.")
-        return
-    
-    await update.message.reply_text("🔄 Rebooting server...")
-    await run_command(["reboot"])
-    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "reboot", [], True)
-
-async def admin_restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not check_admin_access(update.effective_chat.id):
-        return
-    
-    if not rate_limiter.check(update.effective_user.id):
-        await update.message.reply_text("⏳ Rate limited.")
-        return
-    
-    service = context.args[0] if context.args else ""
-    if not service:
-        await update.message.reply_text("Usage: /restart <service_name>")
-        return
-    
-    await update.message.reply_text(f"🔄 Restarting {service}...")
-    stdout, stderr, code = await run_command(["systemctl", "restart", service])
-    if code == 0:
-        await update.message.reply_text(f"✅ {service} restarted successfully")
-    else:
-        await update.message.reply_text(f"❌ Failed to restart {service}: {stderr}")
-    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "restart", [service], code == 0)
-
-async def admin_pihole(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not check_admin_access(update.effective_chat.id):
-        return
-    
-    if not rate_limiter.check(update.effective_user.id):
-        await update.message.reply_text("⏳ Rate limited.")
-        return
-    
-    action = context.args[0] if context.args else ""
-    if action not in ["enable", "disable"]:
-        await update.message.reply_text("Usage: /pihole enable|disable")
-        return
-    
-    await update.message.reply_text(f"🔄 Pi-hole {action}...")
-    stdout, stderr, code = await run_command(["pihole", action])
-    if code == 0:
-        await update.message.reply_text(f"✅ Pi-hole {action}d successfully")
-    else:
-        await update.message.reply_text(f"❌ Failed: {stderr}")
-    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "pihole", [action], code == 0)
-
-async def admin_approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not check_admin_access(update.effective_chat.id):
-        return
-    
-    if not rate_limiter.check(update.effective_user.id):
-        await update.message.reply_text("⏳ Rate limited.")
-        return
-    
-    req_id = int(context.args[0]) if context.args else 0
-    if req_id not in pending_disable_requests:
-        await update.message.reply_text(f"❌ Request #{req_id} not found")
-        return
-    
-    req = pending_disable_requests[req_id]
-    duration = req["duration"]
-    
-    await update.message.reply_text(f"✅ Approving Pi-hole disable for {duration}...")
-    stdout, stderr, code = await run_command(["pihole", "disable", duration])
-    if code == 0:
-        await update.message.reply_text(f"✅ Pi-hole disabled for {duration}")
-        # Notify user
-        try:
-            user_bot = Bot(token=CONFIG.user_token)
-            await user_bot.send_message(
-                chat_id=req["chat_id"],
-                text=f"✅ Your Pi-hole disable request for {duration} has been approved!"
-            )
-        except Exception:
-            pass
-    else:
-        await update.message.reply_text(f"❌ Failed: {stderr}")
-    
-    del pending_disable_requests[req_id]
-    save_pending_requests()
-    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "approve", [str(req_id)], True)
-
-async def admin_deny(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not check_admin_access(update.effective_chat.id):
-        return
-    
-    if not rate_limiter.check(update.effective_user.id):
-        await update.message.reply_text("⏳ Rate limited.")
-        return
-    
-    req_id = int(context.args[0]) if context.args else 0
-    if req_id not in pending_disable_requests:
-        await update.message.reply_text(f"❌ Request #{req_id} not found")
-        return
-    
-    req = pending_disable_requests[req_id]
-    
-    await update.message.reply_text("❌ Pi-hole disable request denied")
-    # Notify user
-    try:
-        user_bot = Bot(token=CONFIG.user_token)
-        await user_bot.send_message(
-            chat_id=req["chat_id"],
-            text="❌ Your Pi-hole disable request has been denied."
-        )
-    except Exception:
-        pass
-    
-    del pending_disable_requests[req_id]
-    save_pending_requests()
-    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "deny", [str(req_id)], True)
-
-async def admin_announce(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not check_admin_access(update.effective_chat.id):
-        return
-    
-    if not rate_limiter.check(update.effective_user.id):
-        await update.message.reply_text("⏳ Rate limited.")
-        return
-    
-    message = " ".join(context.args) if context.args else ""
-    if not message:
-        await update.message.reply_text("Usage: /announce <message>")
-        return
-    
-    broadcast_list = load_broadcast_list()
-    sent = 0
-    for chat_id in broadcast_list:
-        try:
-            user_bot = Bot(token=CONFIG.user_token)
-            await user_bot.send_message(
-                chat_id=chat_id,
-                text=f"📢 <b>Announcement</b>\n\n{message}",
-                parse_mode=ParseMode.HTML
-            )
-            sent += 1
-        except Exception:
-            pass
-    
-    await update.message.reply_text(f"📢 Announcement sent to {sent} users")
-    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "announce", [message], True)
-
-async def admin_pdr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not check_admin_access(update.effective_chat.id):
-        return
-    
-    if not rate_limiter.check(update.effective_user.id):
-        await update.message.reply_text("⏳ Rate limited.")
-        return
-    
-    if not pending_disable_requests:
-        await update.message.reply_text("📭 No pending Pi-hole disable requests")
-        return
-    
-    msg = "📋 <b>Pending Pi-hole Disable Requests</b>\n\n"
-    for req_id, req in pending_disable_requests.items():
-        msg += f"#{req_id} - {req['requester_name']} - {req['duration']} - {req['timestamp']}\n"
-    
-    await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
-
-async def admin_shutdown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not check_admin_access(update.effective_chat.id):
-        return
-    
-    if not rate_limiter.check(update.effective_user.id):
-        await update.message.reply_text("⏳ Rate limited.")
-        return
-    
-    await update.message.reply_text("⚡ Shutting down server...")
-    await run_command(["shutdown", "now"])
-    audit_log(update.effective_user.id, update.effective_user.username or "unknown", "shutdown", [], True)
+    await user_pihole_stats(update, context)
 
 async def admin_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not check_admin_access(update.effective_chat.id):
+    if not await admin_check(update):
         return
-    
     await update.message.reply_text(
         "🤖 <b>Admin Bot Commands</b>\n\n"
         "/status - System report\n"
@@ -782,39 +777,18 @@ async def admin_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     )
 
 # =============================================================================
-# MAIN
+# MAIN APPLICATION
 # =============================================================================
 
-async def main():
-    # Load config from environment
-    CONFIG.admin_token = os.getenv("TELEGRAM_ADMIN_TOKEN", "")
-    CONFIG.admin_chat_id = os.getenv("TELEGRAM_ADMIN_CHAT_ID", "")
-    CONFIG.user_token = os.getenv("TELEGRAM_USER_TOKEN", "")
-    CONFIG.user_chat_id = os.getenv("TELEGRAM_USER_CHAT_ID", "")
-    
+async def main() -> None:
     if not CONFIG.admin_token and not CONFIG.user_token:
-        logger.warning("No tokens configured. Exiting.")
+        logger.error("No bot tokens configured")
         return
     
-    # Load state
-    load_broadcast_list()
     load_pending_requests()
     
-    # Create applications
-    if CONFIG.admin_token:
-        admin_app = Application.builder().token(CONFIG.admin_token).build()
-        admin_app.add_handler(CommandHandler("start", admin_start))
-        admin_app.add_handler(CommandHandler("status", admin_status))
-        admin_app.add_handler(CommandHandler("pihole_stats", admin_pihole_stats))
-        admin_app.add_handler(CommandHandler("reboot", admin_reboot))
-        admin_app.add_handler(CommandHandler("restart", admin_restart))
-        admin_app.add_handler(CommandHandler("pihole", admin_pihole))
-        admin_app.add_handler(CommandHandler("approve", admin_approve))
-        admin_app.add_handler(CommandHandler("deny", admin_deny))
-        admin_app.add_handler(CommandHandler("announce", admin_announce))
-        admin_app.add_handler(CommandHandler("pdr", admin_pdr))
-        admin_app.add_handler(CommandHandler("shutdown", admin_shutdown))
-        admin_app.add_handler(CommandHandler("help", admin_help))
+    # Build applications
+    apps = []
     
     if CONFIG.user_token:
         user_app = Application.builder().token(CONFIG.user_token).build()
@@ -822,40 +796,47 @@ async def main():
         user_app.add_handler(CommandHandler("status", user_status))
         user_app.add_handler(CommandHandler("pihole_stats", user_pihole_stats))
         user_app.add_handler(CommandHandler("pdr", user_pdr))
-        user_app.add_handler(CommandHandler("help", user_start))
+        user_app.add_handler(CommandHandler("help", user_help))
+        apps.append(("User", user_app))
     
-    # Run bots
-    tasks = []
     if CONFIG.admin_token:
-        tasks.append(admin_app.initialize())
-        tasks.append(admin_app.start())
-        tasks.append(admin_app.updater.start_polling())
-    if CONFIG.user_token:
-        tasks.append(user_app.initialize())
-        tasks.append(user_app.start())
-        tasks.append(user_app.updater.start_polling())
+        admin_app = Application.builder().token(CONFIG.admin_token).build()
+        admin_app.add_handler(CommandHandler("reboot", admin_reboot))
+        admin_app.add_handler(CommandHandler("shutdown", admin_shutdown))
+        admin_app.add_handler(CommandHandler("restart", admin_restart))
+        admin_app.add_handler(CommandHandler("pihole", admin_pihole))
+        admin_app.add_handler(CommandHandler("status", admin_status))
+        admin_app.add_handler(CommandHandler("pihole_stats", admin_pihole_stats))
+        admin_app.add_handler(CommandHandler("approve", admin_approve))
+        admin_app.add_handler(CommandHandler("deny", admin_deny))
+        admin_app.add_handler(CommandHandler("announce", admin_announce))
+        admin_app.add_handler(CommandHandler("pdr", admin_pdr))
+        admin_app.add_handler(CommandHandler("help", admin_help))
+        apps.append(("Admin", admin_app))
     
-    await asyncio.gather(*tasks, return_exceptions=True)
+    # Start all
+    for name, app in apps:
+        await app.initialize()
+        await app.start()
+        await app.updater.start_polling(drop_pending_updates=True)
+        logger.info(f"{name} Bot started")
     
     # Keep running
     try:
-        while True:
-            await asyncio.sleep(3600)
-    except KeyboardInterrupt:
-        logger.info("Shutting down...")
-        if CONFIG.admin_token:
-            await admin_app.updater.stop()
-            await admin_app.stop()
-            await admin_app.shutdown()
-        if CONFIG.user_token:
-            await user_app.updater.stop()
-            await user_app.stop()
-            await user_app.shutdown()
+        await asyncio.Event().wait()
+    finally:
+        for name, app in apps:
+            await app.updater.stop()
+            await app.stop()
+            await app.shutdown()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")
 PYTHON_SCRIPT
-    
+
     chown "${SERVICE_USER}:${SERVICE_USER}" "${BOT_SCRIPT}"
     chmod 640 "${BOT_SCRIPT}"
     
@@ -877,17 +858,17 @@ EOF
     
     cat > /etc/systemd/system/telegram-bot.service <<EOF
 [Unit]
-Description=Pi Server Telegram Bot (Dual Bot: Admin + User)
-Documentation=https://github.com/your-repo/pi-server-setup
-After=network.target
-Wants=network.target
+Description=Pi Server Dual Telegram Bot
+Documentation=https://github.com/your-repo/Interactive-server_config_script
+After=network.target network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=${SERVICE_USER}
 Group=${SERVICE_USER}
 WorkingDirectory=${APP_DIR}
-EnvironmentFile=${APP_DIR}/.env
+EnvironmentFile=-/etc/Interactive-server_config_script/settings.conf
 ExecStart=${VENV_DIR}/bin/python ${BOT_SCRIPT}
 Restart=always
 RestartSec=10
@@ -919,53 +900,53 @@ MemoryMax=512M
 WantedBy=multi-user.target
 EOF
     
+    # Create log directory
+    mkdir -p /var/log/pi-server-bot
+    chown "${SERVICE_USER}:${SERVICE_USER}" /var/log/pi-server-bot
+    chmod 750 /var/log/pi-server-bot
+    
+    # Create settings symlink for EnvironmentFile
+    mkdir -p /etc/Interactive-server_config_script
+    if [[ -f "${SCRIPT_DIR}/../settings.conf" ]]; then
+        ln -sf "${SCRIPT_DIR}/../settings.conf" /etc/Interactive-server_config_script/settings.conf
+    fi
+    
     systemctl daemon-reload
     systemctl enable telegram-bot
     systemctl restart telegram-bot
     
-    # Wait and verify
-    sleep 5
+    sleep 3
     if systemctl is-active --quiet telegram-bot; then
         log_success "Telegram Bot service running"
     else
         log_error "Telegram Bot failed to start"
         systemctl status telegram-bot --no-pager
-        journalctl -u telegram-bot --no-pager -n 50
         return 1
     fi
 }
 
 configure_logrotate() {
-    log_info "Configuring logrotate for Telegram Bot..."
+    log_info "Configuring logrotate for bot logs..."
     
     cat > /etc/logrotate.d/pi-server-bot <<EOF
-/var/log/pi-server-bot/bot.log {
-    daily
-    missingok
-    rotate 14
-    compress
-    delaycompress
-    notifempty
-    create 640 pi-bot pi-bot
-    sharedscripts
-    postrotate
-        systemctl reload telegram-bot > /dev/null 2>&1 || true
-    endscript
-}
-
-/var/log/pi-server-bot/audit.log {
+/var/log/pi-server-bot/*.log {
     daily
     missingok
     rotate 30
     compress
     delaycompress
     notifempty
-    create 640 pi-bot pi-bot
+    create 640 ${SERVICE_USER} ${SERVICE_USER}
+    sharedscripts
+    postrotate
+        systemctl reload telegram-bot >/dev/null 2>&1 || true
+    endscript
 }
 EOF
     
     log_success "Logrotate configured"
 }
 
-# Run main
+# Run
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 main "$@"

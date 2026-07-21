@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document explores GUI implementation options for the pi-server-setup project, allowing users to configure and run the installer through a graphical interface instead of CLI-only interaction.
+This document explores GUI implementation options for the Interactive-server_config_script project, allowing users to configure and run the installer through a graphical interface instead of CLI-only interaction.
 
 ---
 
@@ -130,7 +130,7 @@ fi
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    pi-server-setup v2 GUI                   │
+│                    Interactive-server_config_script v2 GUI                   │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
@@ -449,7 +449,7 @@ async fn run_install(modules: Vec<String>, config: serde_json::Value) -> Result<
 ## File Structure for GUI Implementation
 
 ```
-pi-server-setup/
+Interactive-server_config_script/
 ├── install.sh                 # Main CLI (supports --tui, --gui)
 ├── scripts/
 │   ├── gui/
@@ -525,7 +525,7 @@ sudo ./install.sh --gui              # Starts web server, prints URL
 ### Desktop (Phase 3 - Future)
 ```bash
 # Download .AppImage/.dmg/.msi
-pi-server-setup-gui                  # Native desktop app
+Interactive-server_config_script-gui                  # Native desktop app
 ```
 
 ---

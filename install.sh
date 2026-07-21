@@ -10,7 +10,7 @@ set -euo pipefail
 # ============================================================================
 readonly SCRIPT_VERSION="2.0.0"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly PROJECT_NAME="pi-server-setup"
+readonly PROJECT_NAME="Interactive-server_config_script"
 readonly CONFIG_FILE_DEFAULT="${SCRIPT_DIR}/settings.conf"
 readonly CONFIG_FILE_EXAMPLE="${SCRIPT_DIR}/config/settings.conf.example"
 readonly LOG_DIR="/var/log/${PROJECT_NAME}"

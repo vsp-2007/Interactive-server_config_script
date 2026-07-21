@@ -313,7 +313,7 @@ ssh -p 2222 piadmin@<IP>
 systemd-analyze security telegram-bot.service
 
 # Verify config permissions
-stat -c "%a %n" settings.conf /etc/pi-server-setup/settings.conf
+stat -c "%a %n" settings.conf /etc/Interactive-server_config_script/settings.conf
 
 # Check firewall
 ufw status verbose
@@ -359,7 +359,7 @@ tar -czf pi-server-backup-$(date +%Y%m%d).tar.gz \
 
 ```bash
 # Installer log
-tail -f /var/log/pi-server-setup/install_*.log
+tail -f /var/log/Interactive-server_config_script/install_*.log
 
 # Service logs
 journalctl -u prometheus -f
