@@ -39,7 +39,7 @@ Pangolin is a zero-configuration VPN alternative to Tailscale, built on WireGuar
 2. Navigate to **Settings** → **Auth Keys**
 3. Click **Generate Auth Key**
 4. Configure:
-   - **Name:** `pi-server-setup` (or descriptive name)
+   - **Name:** `Interactive-server_config_script` (or descriptive name)
    - **Expiry:** No expiry (or set as needed)
    - **Reusable:** Yes (allows re-authentication)
    - **Ephemeral:** No (keep device registered)
@@ -123,7 +123,7 @@ For security, restrict which devices can access what:
 
 ## Step 7: Install on Your Pi
 
-Run the pi-server-setup script with network module:
+Run the Interactive-server_config_script script with network module:
 
 ```bash
 # Interactive (will prompt for auth key if not in settings.conf)

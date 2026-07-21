@@ -73,7 +73,7 @@ SystemCallErrorNumber=EPERM
 ### Secret Management
 
 - Configuration file: `settings.conf` (chmod 600, root only)
-- Service environment files: `/etc/pi-server-setup/*.conf` (chmod 640, root:service-user)
+- Service environment files: `/etc/Interactive-server_config_script/*.conf` (chmod 640, root:service-user)
 - Telegram bot tokens: Stored in config, loaded via EnvironmentFile
 - No secrets in git history (enforced by .gitignore)
 
@@ -113,7 +113,7 @@ Post-installation verification:
 - [ ] Fail2Ban active with SSH, nginx, Pi-hole, Webmin jails (`fail2ban-client status`)
 - [ ] All services running as non-root users (`systemd-analyze security <service>`)
 - [ ] Systemd hardening applied (`systemd-analyze security telegram-bot.service`)
-- [ ] Config files at 600/640 permissions (`stat -c "%a %n" settings.conf /etc/pi-server-setup/*.conf`)
+- [ ] Config files at 600/640 permissions (`stat -c "%a %n" settings.conf /etc/Interactive-server_config_script/*.conf`)
 - [ ] Telegram bot audit logging working (`tail /var/log/pi-server-bot/audit.log`)
 - [ ] Tailscale MagicDNS + Global Nameserver configured
 - [ ] Unattended upgrades enabled (`systemctl status unattended-upgrades`)

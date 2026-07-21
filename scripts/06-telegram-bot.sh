@@ -829,7 +829,7 @@ install_systemd_service() {
     cat > /etc/systemd/system/telegram-bot.service <<EOF
 [Unit]
 Description=Pi Server Dual Telegram Bot
-Documentation=https://github.com/your-repo/pi-server-setup
+Documentation=https://github.com/your-repo/Interactive-server_config_script
 After=network.target network-online.target
 Wants=network-online.target
 
@@ -838,7 +838,7 @@ Type=simple
 User=${SERVICE_USER}
 Group=${SERVICE_USER}
 WorkingDirectory=${APP_DIR}
-EnvironmentFile=-/etc/pi-server-setup/settings.conf
+EnvironmentFile=-/etc/Interactive-server_config_script/settings.conf
 ExecStart=${VENV_DIR}/bin/python ${BOT_SCRIPT}
 Restart=always
 RestartSec=10
@@ -877,9 +877,9 @@ EOF
     chmod 750 /var/log/pi-server-bot
     
     # Create settings symlink for EnvironmentFile
-    mkdir -p /etc/pi-server-setup
+    mkdir -p /etc/Interactive-server_config_script
     if [[ -f "${SCRIPT_DIR}/../settings.conf" ]]; then
-        ln -sf "${SCRIPT_DIR}/../settings.conf" /etc/pi-server-setup/settings.conf
+        ln -sf "${SCRIPT_DIR}/../settings.conf" /etc/Interactive-server_config_script/settings.conf
     fi
     
     systemctl daemon-reload
